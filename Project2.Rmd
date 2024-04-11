@@ -1,0 +1,402 @@
+---
+title: "Project2"
+author: "Annabella Smith"
+date: "2023-11-07"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, warning = FALSE, error = FALSE, message = FALSE, eval = TRUE)
+```
+
+## 1 Introduction
+
+##### The following data sets consist of Beatles' songs with their different attributes. The first data set contains information on who wrote the song, what place it was on the album, etc. The second data set includes information on each song from Spotify. This includes things like dancibility, energy, and liveness. The third data set includes data on the songs related to the top 100 charts.
+
+##### Here are the links for each data set:
+[Spotify Data](https://www.mybeatles.net/charts.html)
+
+[Top 100 Web Data](https://www.kaggle.com/datasets/catherinerasgaitis/mxmh-survey-results)
+
+[Beatles Songs Data](https://www.kaggle.com/datasets/bvinning/uk-studio-albums-by-the-beatles/data)
+
+##### I chose this topic because I have always loved the Beatles and I'm in a Beatles UGS class this semester. Furthermore, the Beatles are one of the most influential groups to date, and thought it would be interesting to analyze some of their songs. I mainly want to investigate the relationship between whose song it is and other variables like album side, danceability, top 100 hits, year, and energy. 
+
+<center>
+![In order of left to right: John Lennon, Paul McCartney, Ringo Starr, George Harrison. 
+Team, uDiscover. (2020, February 6). The Beatles - John, Paul, George & Ringo Led The Way. UDiscover Music. https://www.udiscovermusic.com/artist/the-beatles/](C:/Users/ABSmi/Downloads/beatlesimage)
+
+------------------------------------------------------------------------
+
+## 2 Data Preperation
+
+```{r}
+# import stuff
+library(tidyverse)
+library(lubridate)
+library(rvest)
+library(dplyr)
+library(ggplot2)
+library(stringr)
+setwd('C:/Users/ABSmi/Downloads')
+beatles<- read_csv("beatles.csv")
+spotify <- read_csv("TheBeatlesCleaned.csv")
+```
+
+```{r}
+# clean up spotify data misspellings 
+spotify[3, "song"] <- "Anna (Go to Him)"
+spotify[12,"song"] <- "A Taste of Honey"
+spotify[15,"song"] <- "It Won't be Long"
+spotify[21,"song"] <- "Please Mr. Postman"
+spotify[28,"song"] <- "Money (That’s What I Want)"
+spotify[32,"song"] <- "i'm happy just to dance with you"
+spotify[35,"song"] <- "Can't Buy Me Love"
+spotify[37,"song"] <- "I'll Cry Instead"
+spotify[40,"song"] <- "You Can't Do That"
+spotify[41,"song"] <- "I'll Be Back"
+spotify[43,"song"] <- "I'm a Loser"
+spotify[44,"song"] <- "Baby's in Black"
+spotify[46,"song"] <- "I'll Follow the Sun"
+spotify[47,"song"] <- "Mr. Moonlight"
+spotify[48,"song"] <- "Kansas City / Hey-Hey-Hey-Hey!"
+spotify[52,"song"] <- "Every Little Thing"
+spotify[54,"song"] <- "What You're Doing"
+spotify[55,"song"] <- "Everybody's Trying to Be My Baby"
+spotify[61,"song"] <- "You're Goning to Lose That Girl"
+spotify[64,"song"] <- "It's Only Love"
+spotify[67,"song"] <- "I've Just Seen a Face"
+spotify[71,"song"] <- "Norwegian Wood (This Bird Has Flown)"
+spotify[72,"song"] <- "You Won't See Me"
+spotify[86,"song"] <- "I'm Only Sleeping"
+spotify[98,"song"] <- "Sgt. Pepper's Lonely Hearts Club Band"
+spotify[103,"song"] <- "She's Leaving Home"
+spotify[104,"song"] <- "Being for the Benefit of Mr. Kite!"
+spotify[106,"song"] <- "When I'm Sixty-Four"
+spotify[109,"song"] <- "Sgt. Pepper's Lonely Hearts Club Band (Reprise)"
+spotify[122,"song"] <- "Back in the U.S.S.R."
+spotify[125,"song"] <- "Ob-La-Di, Ob-La-Da"
+spotify[127,"song"] <- "The Continuing Story of Bungalow Bill"
+spotify[129,"song"] <- "Happiness Is a Warm Gun"
+spotify[131,"song"] <- "I'm So Tired"
+spotify[140,"song"] <- "Yer Blues"
+spotify[141,"song"] <- "Mother Nature's Son"
+spotify[142,"song"] <- "Everybody's Got Something to Hide Except Me and My Monkey"
+spotify[156,"song"] <- "It's All Too Much"
+spotify[167,"song"] <- "Maxwell's Silver Hammer"
+spotify[170,"song"] <- "I Want You (She's So Heavy)"
+spotify[171,"song"] <- "Here Comes the Sun"
+spotify[175,"song"] <- "Mean Mr. Mustard"
+spotify[189,"song"] <- "I've Got a Feeling"
+
+```
+
+```{r}
+# web scrape for other variable
+beatles_link <- "https://www.mybeatles.net/charts.html"
+beatles_page <- read_html(beatles_link)
+track <- html_text(html_elements(beatles_page,"div+ div tr~ tr+ tr td:nth-child(2) b"))
+highest_position <- html_text(html_elements(beatles_page,"div+ div tr~ tr+ tr td:nth-child(3) b , div+ div td+ td font"))
+
+# it duplicated everything with a value of one, fix
+to_remove <- numeric(0)
+for (i in 1:length(highest_position)) {
+  if (highest_position[i] == 1 && i %% 2 == 0) {
+    to_remove <- c(to_remove, i)
+  }
+}
+highest_position <- highest_position[-to_remove]
+web <- tibble(track, highest_position)
+web <- mutate(web, highest_position= as.numeric(highest_position))
+
+# error with as.numeric even though the cell had a number, fix
+web[64,"highest_position"] <-71
+```
+
+```{r}
+# Format
+beatles <- mutate(beatles, track = gsub("[[:punct:]]", "", track))
+spotify <- mutate(spotify, song = gsub("[[:punct:]]", "", song))
+web <- mutate(web, track = gsub("[[:punct:]]", "", track))
+beatles <- mutate(beatles, track = tolower(track))
+spotify <- mutate(spotify, song = tolower(song))
+web <- mutate(web, track = tolower(track))
+
+# error with data fix. There are two "twist and shout"s
+deleteweb <- web$track == "twist and shout" & web$highest_position == 23
+web <- filter(web, !deleteweb)
+
+# try to fix left join
+web[4,"track"] <- "isawherstandingthere"
+web[3,"track"] <- "pleasepleaseme"
+web[7,"track"] <- "twistandshout"
+web[8,"track"] <- "rolloverbeethoven"
+web[9,"track"] <- "cantbuymelove"
+web[10,"track"] <- "allmyloving"
+web[11,"track"] <- "doyouwanttoknowasecret"
+web[12,"track"] <- "youcantdothat"
+web[14,"track"] <- "theresaplace"
+web[17,"track"] <- "psiloveyou"
+web[21,"track"] <- "ishouldhaveknownbetter"
+web[23,"track"] <- "imhappyjusttodancewithyou"
+web[24,"track"] <- "illcryinstead"
+web[25,"track"] <- "ififell"
+web[31,"track"] <- "idontwanttospoiltheparty"
+web[35,"track"] <- "help"
+web[37,"track"] <- "actnaturally"
+web[40,"track"] <- "nowhereman"
+web[41,"track"] <- "whatgoeson"
+web[44,"track"] <- "yellowsubmarine"
+web[45,"track"] <- "eleanorrigby"
+web[55,"track"] <- "revolution1"
+web[56,"track"] <- "getback"
+web[60,"track"] <- "letitbe"
+web[62,"track"] <- "gottogetyouintomylife"
+web[64,"track"] <- "sgtpepperslonelyheartsclubband"
+
+# error with data fix. There are two "all you need is love"s and yellow submarines
+deletespot <- spotify$song == "all you need is love" & spotify$album == "Magical Mystery Tour"
+spotify <- filter(spotify, !deletespot)
+deletespot <- spotify$song == "yellow submarine" & spotify$album == "Yellow Submarine"
+spotify <- filter(spotify, !deletespot)
+deletebeat <- beatles$track == "yellow submarine" & beatles$album == "Yellow Submarine"
+beatles <- filter(beatles, !deletebeat)
+# Join Data and more format
+spotbeatles <- inner_join(beatles, spotify, by = c("track" = "song"))
+spotbeatles <- mutate(spotbeatles, track = str_replace_all(track, " ", ""))
+web <- mutate(web, track = str_replace_all(track, " ", ""))
+allbeatles <- left_join(spotbeatles, web, by= "track")
+```
+
+```{r}
+# make a new variable 
+beatlength <- nrow(allbeatles)
+top100 <- logical(beatlength)
+for (i in 1:beatlength) {
+  if (is.na(allbeatles$highest_position[i])) {
+    top100[i] <- FALSE
+  } else {
+    top100[i] <- TRUE
+  }
+}
+allbeatles <- mutate(allbeatles, top100=top100)
+
+# delete yellow submarine album
+all <- allbeatles$album.x == "Yellow Submarine"
+allbeatles <- filter(allbeatles, !all)
+
+# fix energy
+allbeatles <- mutate(allbeatles, energy= as.numeric(energy))
+```
+
+```{r}
+# fix vocals
+allbeatles<- mutate(allbeatles, lead_vocals = str_replace_all(allbeatles$lead_vocals, c("Lennon" = "L", "McCartney" = "M", "Harrison" = "H","Starr"="S","and"="", "Yoko"="", "Ono"="","with"="","Speaking from"="","George Martin"="",","=""," "="")))
+allbeatles$leadvocals <- lapply(allbeatles$lead_vocals, function(x) str_sort(strsplit(x, "")[[1]]))
+allbeatles$leadvocals <- sapply(allbeatles$leadvocals, function(x) paste(x, collapse = ""))
+
+```
+
+##### Two out of three of the data sets were csv files that were able to be imported into R. The third one had to be web-scraped using R.
+
+##### For the Spotify data, I had to fix several errors in the song names. Without this, I would be unable to stitch any other data set to it. An example of an error is "Happiness is a warm gem," instead of "Happiness is a warm gun."
+
+##### Unfortunately, the first data set did not include any of the songs from the album "Magical Mystery Tour," so these songs will not be included in the analysis. This is likely that because the Magical Mystery Tour was not released in the United States and was only released in the UK. Although I would have liked this album to be included, it is probably best since the top 100 data is for the United States. 
+
+##### After fixing the Spotify data, I converted both data sets' songs columns to lowercase, since the majority of the Spotify data had incorrect capitalization.
+
+##### When joining the web data to the combined Beatles and Spotify data set, only some of the songs recognized that they were the same. I tried to fix it by making sure both columns' strings were all lowercase, without punctuation, and without spaces. However, this did not work either. For some reason, the only way I got it to work was to paste the names from the combined set into the web data set. I'm not sure why this worked, as from I can tell the songs had the same names and had no differences in format or spelling. This was perhaps the most challenging part, it was tedious and confusing.
+
+##### Lastly, I simplified the lead vocals for usability when analyzing the variable. I formatted it so that the names were converted to initials and didn't include things like "and" and "with." I also alphabetized it so the original "Lennon with McCartney" was effectively the same as "McCartney with Lennon."
+
+##### The variable that I had to think about in terms of NA values was the songs' highest position on the top 100, most songs didn't even reach this. I tackled this by adding a variable to the combined data set which says TRUE if the song was on the Top 100 charts, and FALSE if it wasn't. The other spot of NA values was the tracks in the album Yellow Submarine. They had NA values because there were no lyrics and hence no lead vocal. I decided to delete these rows since they were written by George Martin, the Beatles' producer rather than any of the Beatles.
+
+##### There are a total of 166 observations in the data set. 
+
+------------------------------------------------------------------------
+
+## 3 Variable Descriptions
+
+```{r}
+# simplify data, add names
+cleanbea <- tibble(allbeatles$track,allbeatles$leadvocals,allbeatles$side_label,allbeatles$danceability,allbeatles$energy,allbeatles$top100,allbeatles$year)
+colnames(cleanbea) <- c("track", "lead_vocals","side_label","danceability","energy","top100","year")
+
+write.csv(cleanbea, file = "beatlesproject.csv", row.names = FALSE)
+
+```
+
+```{r}
+# variable description table :)
+Variable <- c("track", "lead_vocals","side_label","danceability","energy","top100","year")
+Type <- c(class(cleanbea$track),class(cleanbea$lead_vocals),class(cleanbea$side_label),class(cleanbea$danceability),class(cleanbea$energy),class(cleanbea$top100),class(cleanbea$year))
+Description <- c("The name of the Beatles' song","Which Beatle(s) sing lead vocals given by inital","Which side of the album the track is on","A Spotify measure as to how dancable the song is","A Spotify measure as to how intense and active the song is","Whether or not the track made the Top 100 charts","What year the song came out")
+variabletibble <- tibble(Variable,Type,Description)
+library(kableExtra)
+variabletibble %>%
+  kbl() %>%
+  kable_material(c("striped", "hover"))
+```
+
+------------------------------------------------------------------------
+
+## 4 Univariate Analyses
+
+```{r}
+beatlesplot <- ggplot(cleanbea)
+#lead vocals 
+beatlesplot + geom_bar(aes(x=lead_vocals),fill='darkslategrey') + labs(title='Distribution of Lead Vocals',x='Lead Vocals',y='Frequency')
+# stats prep
+leadtable <- table(cleanbea$lead_vocals)
+```
+
+##### The above graph is a bar graph of the frequency of different lead vocal singers. The frequency is low except in five spikes, these consist of each of the four Beatles as well as the Lennon-McCartney duo. The category with the highest frequency is John Lennon with `r max(leadtable)` songs. The Beatle with the lowest frequency is Ringo at 9 songs. The lowest out of all categories is John Lennon, Paul McCartney, and Ringo Starr combined with `r min(leadtable)`.
+##### I'm using lead vocals instead of writer for a couple of reasons. Firstly, the Beatles played a lot of cover songs in their early career and that would make the analysis a lot more convoluted. Secondly, Lennon and McCartney had a deal where if either of them wrote a song, the offical writers would be Lennon-McCartney. Even if a song had this, it doesn't necessarily mean that both of the Beatles wrote the song. It is more reliable to go off of lead vocals because it was often the lead vocalist's song. 
+
+```{r}
+# key for initials
+Initial <- c("L","M","H","S")
+Names <- c("John Lennon","Paul McCartney","George Harrison","Ringo Starr")
+Description <- c("John Lennon was the rhythm guitarist and one of the main creative forces.","Paul McCartney was the bassist of the Beatles and one of the main creative forces.","George Harrison was the lead guitarist and as he aged, developed as a song writer.","Ringo Starr played the drums with an amazing ability to keep tempo.")
+initialtibble <- tibble(Initial,Names,Description)
+library(kableExtra)
+initialtibble %>%
+  kbl() %>%
+  kable_material(c("striped", "hover"))
+```
+
+##### The table above gives a key for the initials used in the graph above it.
+
+```{r}
+#side label 
+beatlesplot + geom_bar(aes(x=side_label),fill='darkslategrey') + labs(title='Distribution of Album Side',x='Album Side',y='Frequency')
+# stats prep
+labeltable <- table(cleanbea$side_label)
+```
+
+##### The graph above displays the distribution of album side for all the songs in the data set. Most songs are either on the A or B side due to most Beatles' albums only have one record with two sides. The Beatles, better known as the White Album, was the band's only double record album, hence why there are so few on the C and D sides. The highest amount of songs on a side is the B side with `r max(labeltable)` songs and the lowest is the D side with `r min(labeltable)` songs.
+
+```{r}
+# danceability 
+beatlesplot + geom_histogram(aes(x=danceability), fill='darkslategrey') + labs(title=' Distribution of Song Danceability', x='Danceability',y='Frequency')
+```
+
+##### The graph above is the distribution of the Spotify measure of danceability. The distribution is relatively normal with an absence of songs directly in the middle of the distribution. It is only very slightly skewed left with a mean of `r round(mean(cleanbea$danceability),3)` and a median of `r median(cleanbea$danceability)`. 
+
+```{r}
+# energy level 
+beatlesplot + geom_histogram(aes(x=energy), fill='darkslategrey') + labs(title=' Distribution of Song Energy Levels', x='Energy Level',y='Frequency')
+```
+
+##### This graph displays the distribution of the Spotify measure of energy. The distribution is also relatively normal. It is only very slightly skewed to the right with a mean of `r round(mean(cleanbea$energy),3)` and a median of `r median(cleanbea$energy)`. 
+```{r}
+# top 100
+beatlesplot + geom_bar(aes(x=top100),fill='darkslategrey') + labs(title='Distribution of Songs that Reached the Top 100',x='Reached Top 100?',y='Frequency')
+# stat prep
+toptable <- table(cleanbea$top100)
+bottom <- max(toptable)
+top <- min(toptable)
+total <- top + bottom 
+```
+
+##### The graph shows the frequency of Beatles songs that made it to the Top 100 Charts. While it looks like only `r 100* round(top/total,4)`% of the songs made it, this data set does not include singles the Beatles released that weren't on any albums, rather only album-released songs. Many Beatles singles were very popular. An example of this is Hey Jude, a non-album single that peaked on the charts at No. 1. There were `r bottom` songs, the max, in this data set that did not reach the Top 100. There were `r top` songs, the min, that made it to the Top 100. 
+```{r}
+# year
+beatlesplot + geom_bar(aes(x=year), fill='darkslategrey') + labs(title=' Distribution of Song Release Year', x='Year',y='Frequency')
+# stats prep
+songtable <- table(cleanbea$year)
+```
+
+##### The graphs above show the distribution of songs released based on year. The graphs show that the Beatles consistently released songs from 1963-1965, however, dropped off in '66-'67, reached an all-time high of `r max(songtable)` songs released in 1968, and then dropped off again until their break up. The lowest amount of songs released was `r min(songtable)`; this happened in both 1967 and 1970. 
+
+***
+
+## 5 Multivariate Analyses
+
+```{r}
+# side label vs lead vocals
+table_data <- table(cleanbea$side_label, cleanbea$lead_vocals)
+labelprop <- prop.table(table_data)
+labelprop2<- prop.table(table_data, margin = 2)
+# Create a barplot with a legend
+ggplot(data = as.data.frame(table_data), aes(x = Var2, y = Freq, fill = Var1)) +
+  geom_bar(stat = "identity", position = "dodge") + labs(title = 'Lead Vocal and Side Label', y = 'Frequency of Side Label', x = 'Lead Vocals') + scale_fill_manual(values = c('#F8E73B', '#E00A86', '#30B4CC', '#EA573B'), name='Side') 
+```
+
+##### The graph above displays the relationship between lead vocals and which side of the record the song was. It can be seen that the majority of Lennon-McCartney and Lennon songs were featured on the A side of the record, while the majority of Harrison and McCartney songs were on the B side. It was about half and half for Starr. Other combinations of the Beatles were featured on the B side or lower. `r 100* round(labelprop2["B","H"],2)`% of Harrison's songs and `r 100* round(labelprop2["B","M"],2)`% of McCartney's songs were featured on the B side. `r 100* round(labelprop2["A","L"],2)`% of Lennon's and `r 100* round(labelprop2["A","LM"],2)`% of Lennon-McCartney's songs were featured on the A side. Starr had `r 100* round(labelprop2["A","S"],2)`% on the A side and `r 100* round(labelprop2["B","S"],2)`% on the B side. 
+##### 
+
+```{r}
+#danceability vs year
+boxplot(cleanbea$danceability~cleanbea$year, main='Year and Danceability',ylab='Danceability',xlab='Year released',col=c('#202020','#5A5A5A','#D8D9DA','#61677A','#F8E73B', '#E00A86', '#30B4CC', '#EA573B'))
+
+# stats prep 
+grouped_dance <- group_by(cleanbea, year)
+dancetable <- summarise(grouped_dance, median_danceability = median(danceability))
+dancefive <- summarise(grouped_dance, min = min(danceability), q1 = quantile(danceability, 0.25), median = median(danceability), q3 = quantile(danceability, 0.75),max = max(danceability), range = max(danceability)-min(danceability))
+```
+
+##### The graph above displays the distributions of danceability per year. The year with the highest median daceability is 1964 with a score of 0.61. This is likely due to the nature of the albums that came out that year, including A Hard Day's Night, which is the track to the movie of the same name. The year with the lowest is 1966 with a median score of 0.49. The medians across the years are relatively the same with the highest range in 1968 with range of 0.67.
+
+```{r}
+#energy vs year 
+boxplot(cleanbea$energy~cleanbea$year, main='Year and Energy',ylab='Energy',xlab='Year released',col=c('#202020','#5A5A5A','#D8D9DA','#61677A','#F8E73B', '#E00A86', '#30B4CC', '#EA573B'))
+
+# stat prep
+grouped_energy <- group_by(cleanbea, year)
+energyfive <- summarise(grouped_energy, min = min(energy), q1 = quantile(energy, 0.25), median = median(energy), q3 = quantile(energy, 0.75),max = max(danceability), range = max(energy)-min(energy))
+```
+
+##### The graph above displays the distributions of energy levels per year. The medians of the energy levels generally decrease from the beginning of their career with a spike in 1968 and 1970. 1963 has the highest median with 0.63 and 1969 has the lowest energy median with 0.44. 1968 had the greatest range of 0.87, this is likely due to the diverse catalog of The White Album, which was released in 1968. 
+
+```{r}
+# top 100 vs lead vocals 
+table_data <- table(cleanbea$top100, cleanbea$lead_vocals)
+topprop <- prop.table(table_data)
+topprop2<- prop.table(table_data, margin = 2)
+# Create a barplot with a legend
+ggplot(data = as.data.frame(table_data), aes(x = Var2, y = Freq, fill = Var1)) +
+  geom_bar(stat = "identity", position = "dodge") + labs(title = 'Lead Vocal and Top 100', y = 'Frequency of Top 100', x = 'Lead Vocals') + scale_fill_manual(values = c('#9b0000', '#08533e'), name='Top 100?') 
+```
+
+##### The table above displays the lead vocals of a song and whether or not the song made the top 100 charts. The majority of each lead vocal's songs did not make the top 100, however, this data set does not include non-album singles. The highest ratio of songs making it to the top 100 is Starr and Lennon-McCartney. Both had `r 100* round(topprop2["TRUE","S"],2)`% make it to the top 100, and `r 100* round(topprop2["FALSE","S"],2)` not. 
+
+```{r}
+# year vs lead vocals
+table_data <- table(cleanbea$year, cleanbea$lead_vocals)
+yearprop <- prop.table(table_data)
+yearprop2<- prop.table(table_data, margin = 2)
+ # plot
+beatlesplot + geom_histogram(aes(x=year),col='black',fill='#30B4CC')  + labs(title='Songs Released in a Year by Lead Vocals',x='Year',y='Frequency') + theme(legend.position='bottom') + scale_fill_brewer(type='qual',palette=2) + facet_wrap(~lead_vocals)
+```
+
+##### The graphs above display the distribution of the frequency of songs released in a year by lead vocals. Both Harrison and Lennon have a general downward slope of songs released. All of the Beatles feature a spike in 1968. This is due to the release of the double album, The White Album, which featured 30 songs. Harrison's most productive year was 1963 with `r 100* round(yearprop2["1963","H"],2)`% of his songs in the data set being released. Lennon's most productive years were 1964 and 1965 with  `r 100* round(yearprop2["1964","L"],2)`% of his songs being released. McCartney's most productive year was 1968 with `r 100* round(yearprop2["1968","M"],2)`% of his songs being released. Starr had two most productive years during 1965 and 1968 with `r 100* round(yearprop2["1965","S"],2)`% of his songs being released in each. 
+
+***
+
+## 6 Reproducibility
+
+##### To ensure reproducibility, I added comments for ease as well as checked with a peer. The TA should be able to knit after setting the working directory to their own. 
+
+***
+
+## 7 Choice Elements
+
+##### The elements I used in my report include using 5 or more in-line codes, merging one or more datasets, formatting one string variable, web scraping at least one variable, using a loop, and using an if statement. The code in-line are distributed throughout the report, mostly in describing the graphs. I merged the three data sets in the data preparation portion. I web scraped the variables 'track' and 'highest_position' in the data preparation portion in order to match the data set to the other tracks and develop the variable of interest 'top100.' I formatted multiple string variables in the data preparation as well. I used a for loop to format the web data correctly, as when it was scraped, it doubled every value equal to 1. This was in the data preparation and also included an if statement in the loop. 
+
+***
+
+## 8 Conclusion
+
+##### One of the most interesting findings in this analysis was the downward slope of songs released by Harrison. I would have expected the opposite due to his development as a songwriter as he aged. Another one is that Ringo Starr had the highest ratio(tied with Lennon-McCartney) of songs released vs if they made it to the top 100. While he only had a small amount of songs, 33% of them made the top 100. It seems to me that fans really loved Starr's songs even if he's not thought of as the Beatle with the best singing or writing capabilities. Perhaps the other Beatles should have let Starr sing more songs. A finding I should have expected, but failed to think about before the analysis is the effects of the White Album. This album had a lot of songs with a wide variety and contributed to spikes in songs released by year, energy, and danceability. Another surprising finding is that Lennon has a lot more A side songs than McCartney does, McCartney rather has more B sides. I expected those two Beatles to be more equal in A side songs, and it was very surprising for McCartney to have fewer A sides than B. This is because generally the A side is more important than the B side, and I expected these two major personalities to want and achieve equal footing on this matter. 
+
+##### I would have liked to include all album and non-album songs in the data set, however, the sets I found did not include these. It would be interesting to see the difference between a data set with all of the songs. 
+
+***
+
+## 9 References
+
+##### Billboard US Charts - Beatles. (n.d.). Www.mybeatles.net. Retrieved November 10, 2023, from https://www.mybeatles.net/charts.html
+##### BVINNING. (2023). Track-By-Track UK Studio Albums by “The Beatles.” Www.kaggle.com. https://www.kaggle.com/datasets/bvinning/uk-studio-albums-by-the-beatles
+##### Team, uDiscover. (2020, February 6). The Beatles - John, Paul, George & Ringo Led The Way. UDiscover Music. https://www.udiscovermusic.com/artist/the-beatles/
+##### Wambles, C. (2021). The Beatles Spotify Song Data. Www.kaggle.com. https://www.kaggle.com/datasets/chadwambles/allbeatlesspotifysongdata2009remaster
